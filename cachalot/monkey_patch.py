@@ -5,6 +5,7 @@ from collections import Iterable
 from hashlib import md5
 import re
 
+from django.conf import settings
 from django.core.cache import cache as django_cache
 from django.db import connection
 from django.db.models.query import EmptyResultSet
@@ -25,19 +26,34 @@ READ_COMPILERS = [c for c in COMPILERS if c not in WRITE_COMPILERS]
 PATCHED = False
 MISS_VALUE = '[[Missing cache key]]'
 
-DEFAULT_PREFIX = 'django-cachealot'
+DEFAULT_CACHE_KEY_PREFIX = 'django-cachealot'
+CACHE_KEY_PREFIX = getattr(settings, 'CACHEALOT_CACHE_KEY_PREFIX', DEFAULT_CACHE_KEY_PREFIX)
 
 
-def generate_cache_key(query, using='default', prefix=None):
-    key = md5()
-    key.update(query)
-    key.update(using)
+class KeyGen(object):
 
-    cache_key = key.hexdigest()
-    cache_key = "%s.%s" % (prefix or DEFAULT_PREFIX, cache_key)
+    def __init__(self, prefix=None):
+        self.prefix = prefix
 
-    return cache_key
+    def generate_cache_key(self, *args):
+        key = md5()
+        map(key.update, args)
 
+        return self.key_with_prefix(key.hexdigest())
+
+    def key_with_prefix(self, cache_key):
+        return "%s.%s" % (self.prefix, cache_key)
+
+    def generate_query_cache_key(self, query, using='default'):
+        """ 
+        Takes a ``query`` as a string and an optional ``using``
+        and returns a cache key
+        """
+
+        return self.generate_cache_key(query, using)
+
+
+key_generator = KeyGen(CACHE_KEY_PREFIX)
 
 
 def _get_tables(query):
@@ -50,7 +66,7 @@ def _get_tables(query):
 
 
 def _get_tables_cache_keys(query):
-    return ['%s_queries' % t for t in _get_tables(query)]
+    return [key_generator.key_with_prefix('%s_queries' % t) for t in _get_tables(query)]
 
 
 def _update_tables_queries(cache, query, cache_key):
@@ -173,7 +189,8 @@ def _patch_orm_read():
 
             try:
                 query_sql_with_params = compiler.as_sql()
-                cache_key = generate_cache_key(query_sql_with_params[0] % query_sql_with_params[1], using=db)
+                sql = query_sql_with_params[0] % query_sql_with_params[1]
+                cache_key = key_generator.generate_query_cache_key(sql, using=db)
             except EmptyResultSet:
                 return original(compiler, *args, **kwargs)
 

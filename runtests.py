@@ -40,7 +40,10 @@ CACHES = {
 
 settings.configure(
     DEBUG=True,
-    DATABASES={'default': DATABASES[os.environ.get('DB_ENGINE', 'sqlite3')]},
+    DATABASES={
+        'default': DATABASES[os.environ.get('DB_ENGINE', 'sqlite3')],
+        'second' : DATABASES[os.environ.get('DB_ENGINE', 'sqlite3')],
+    },
     INSTALLED_APPS=(
         'cachalot',
         'django.contrib.auth',

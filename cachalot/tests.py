@@ -930,6 +930,75 @@ class WriteTestCase(TestCase):
         pass
 
 
+class MultipleDatabasesTestCase(TestCase):
+    def setUp(self):
+        self.test1 = Test(name='default_database')
+        self.test1.save()
+        
+        self.test2 = Test(name="second_database")
+        self.test2.save(using='second')
+
+    def tearDown(self):
+        # Because Django doesn't clean up any databases other
+        # than `default` ??
+        Test.objects.all().delete()
+        Test.objects.using('second').delete()
+
+    def test_get(self):
+        with self.assertNumQueries(1):
+            test1 = Test.objects.get(name='default_database')
+        
+        with self.assertNumQueries(1, using='second'):
+            test2 = Test.objects.using('second').get(name='second_database')
+
+        self.assertEqual(test1.pk, self.test1.pk)
+        self.assertEqual(test2.pk, self.test2.pk)
+
+        # Make sure results are getting cached
+        with self.assertNumQueries(0):
+            test1 = Test.objects.get(name='default_database')
+        
+        with self.assertNumQueries(0, using='second'):
+            test2 = Test.objects.using('second').get(name='second_database')
+
+        self.assertEqual(test1.name, 'default_database')
+        self.assertEqual(test2.name, 'second_database')
+
+    def test_count(self):
+        with self.assertNumQueries(1):
+            self.assertEqual(Test.objects.count(), 1)
+
+        with self.assertNumQueries(1, using='second'):
+            self.assertEqual(Test.objects.using('second').count(), 1)
+
+
+        with self.assertNumQueries(0):
+            self.assertEqual(Test.objects.count(), 1)
+
+        with self.assertNumQueries(0, using='second'):
+            self.assertEqual(Test.objects.using('second').count(), 1)
+
+    def test_all(self):
+        with self.assertNumQueries(1):
+            test1 = list(Test.objects.all())
+        
+        with self.assertNumQueries(1, using='second'):
+            test2 = list(Test.objects.using('second').all())
+
+        self.assertEqual(test1[0].pk, self.test1.pk)
+        self.assertEqual(test2[0].pk, self.test2.pk)
+
+        # Make sure results are getting cached
+        with self.assertNumQueries(0):
+            test1 = list(Test.objects.all())
+        
+        with self.assertNumQueries(0, using='second'):
+            test2 = list(Test.objects.using('second').all())
+
+        self.assertEqual(test1[0].name, 'default_database')
+        self.assertEqual(test2[0].name, 'second_database')
+
+
 class AtomicTestCase(TestCase):
     def test_successful_read_atomic(self):
         with self.assertNumQueries(3):

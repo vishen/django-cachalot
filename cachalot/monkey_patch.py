@@ -2,6 +2,7 @@
 
 from __future__ import unicode_literals
 from collections import Iterable
+from hashlib import md5
 import re
 
 from django.core.cache import cache as django_cache
@@ -23,6 +24,20 @@ READ_COMPILERS = [c for c in COMPILERS if c not in WRITE_COMPILERS]
 
 PATCHED = False
 MISS_VALUE = '[[Missing cache key]]'
+
+DEFAULT_PREFIX = 'django-cachealot'
+
+
+def generate_cache_key(query, using='default', prefix=None):
+    key = md5()
+    key.update(query)
+    key.update(using)
+
+    cache_key = key.hexdigest()
+    cache_key = "%s.%s" % (prefix or DEFAULT_PREFIX, cache_key)
+
+    return cache_key
+
 
 
 def _get_tables(query):
@@ -151,12 +166,14 @@ def _patch_orm_read():
                 return original(compiler, *args, **kwargs)
 
             query = compiler.query
+            db = getattr(compiler, 'using', 'default')
 
             if _has_extra_select_or_where(query):
                 return original(compiler, *args, **kwargs)
 
             try:
-                cache_key = compiler.as_sql()
+                query_sql_with_params = compiler.as_sql()
+                cache_key = generate_cache_key(query_sql_with_params[0] % query_sql_with_params[1], using=db)
             except EmptyResultSet:
                 return original(compiler, *args, **kwargs)
 

@@ -27,7 +27,8 @@ PATCHED = False
 MISS_VALUE = '[[Missing cache key]]'
 
 DEFAULT_CACHE_KEY_PREFIX = 'django-cachealot'
-CACHE_KEY_PREFIX = getattr(settings, 'CACHEALOT_CACHE_KEY_PREFIX', DEFAULT_CACHE_KEY_PREFIX)
+CACHE_KEY_PREFIX = getattr(settings, 'CACHEALOT_CACHE_KEY_PREFIX', 
+                                    DEFAULT_CACHE_KEY_PREFIX)
 
 
 class KeyGen(object):
@@ -41,9 +42,6 @@ class KeyGen(object):
 
         return self.key_with_prefix(key.hexdigest())
 
-    def key_with_prefix(self, cache_key):
-        return "%s.%s" % (self.prefix, cache_key)
-
     def generate_query_cache_key(self, query, using='default'):
         """ 
         Takes a ``query`` as a string and an optional ``using``
@@ -51,6 +49,9 @@ class KeyGen(object):
         """
 
         return self.generate_cache_key(query, using)
+
+    def key_with_prefix(self, cache_key):
+        return "%s.%s" % (self.prefix, cache_key)
 
 
 key_generator = KeyGen(CACHE_KEY_PREFIX)
